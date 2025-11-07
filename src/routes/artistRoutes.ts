@@ -10,7 +10,7 @@ import { upload } from "../middlewares/upload";
 
 const router = Router();
 
-// CRUD Artista
+// ✅ CRUD de Artista
 router.post("/", upload.single("profilePicture"), createArtist);
 router.get("/", getArtists);
 router.get("/:id", getArtistById);

@@ -3,7 +3,7 @@ import { loginArtist } from "../controllers/authController";
 
 const router = Router();
 
-// POST /api/auth/login
+// ✅ Login de Artista
 router.post("/login", loginArtist);
 
 export default router;

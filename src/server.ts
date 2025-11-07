@@ -4,7 +4,7 @@ dotenv.config();
 import express from "express";
 import cors from "cors";
 import mongoose from "mongoose";
-import cloudinary from "./config/cloudinary"; // verifique o caminho
+import cloudinary from "./config/cloudinary";
 
 import artistRoutes from "./routes/artistRoutes";
 import authRoutes from "./routes/authRoutes";
@@ -19,8 +19,8 @@ app.use(cors());
 app.use(express.json());
 
 // Rotas
-app.use("/api/artists", artistRoutes);
-app.use("/api/auth", authRoutes);
+app.use("/api/auth", authRoutes);      // 👈 primeiro, rotas de login
+app.use("/api/artists", artistRoutes); // 👈 depois, CRUD de artistas
 app.use("/api/collectives", collectiveRoutes);
 app.use("/api/equipments", equipmentRoutes);
 app.use("/api/search", searchRoutes);
