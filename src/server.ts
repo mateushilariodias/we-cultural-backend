@@ -4,11 +4,14 @@ dotenv.config();
 import express from "express";
 import cors from "cors";
 import mongoose from "mongoose";
+import bcrypt from "bcrypt";
+import statsRoutes from "./routes/statsRoutes";
 
 // Importar modelos E rotas
 import Artist from "./models/artistModel"; // 👈 ADICIONE ESTA LINHA
 import artistRoutes from "./routes/artistRoutes";
 import authRoutes from "./routes/authRoutes";
+import searchRoutes from "./routes/searchRoutes";
 
 const app = express();
 
@@ -19,6 +22,8 @@ app.use(express.json());
 // Rotas
 app.use("/api/auth", authRoutes);
 app.use("/api/artists", artistRoutes);
+app.use("/api/search", searchRoutes);
+app.use("/api/stats", statsRoutes);
 
 // Rota de debug completo - CORRIGIDA
 app.get("/api/debug", async (req, res) => {
@@ -52,6 +57,38 @@ app.get("/api/debug", async (req, res) => {
 
 // Rota raiz
 app.get("/", (req, res) => res.json({ message: "Bem-vindo à API" }));
+
+// 🔧 ROTA PARA CONSERTAR SENHA - Cole isso ANTES do app.listen
+app.post("/api/fix-password", async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+    
+    console.log("🔧 Tentando atualizar senha para:", email);
+    
+    // Criptografa a nova senha
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    
+    // Atualiza no banco
+    const artist = await Artist.findOneAndUpdate(
+      { email },
+      { password: hashedPassword },
+      { new: true }
+    );
+    
+    if (!artist) {
+      return res.status(404).json({ message: "Artista não encontrado" });
+    }
+    
+    console.log("✅ Senha atualizada com sucesso!");
+    res.json({ 
+      message: "✅ Senha atualizada com sucesso!",
+      email: artist.email 
+    });
+  } catch (error) {
+    console.error("❌ Erro:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Conexão MongoDB
 const mongoURI = process.env.MONGODB_URI;
