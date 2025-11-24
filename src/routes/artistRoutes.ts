@@ -5,9 +5,9 @@ import {
   getArtistById,
   updateArtist,
   deleteArtist,
-} from "../controllers/artistController";
-import { upload } from "../middlewares/upload";
-import Artist from "../models/artistModel";
+} from "../controllers/artistController.js";
+import { upload } from "../middlewares/upload.js";
+import Artist from "../models/artistModel.js";
 
 const router = Router();
 

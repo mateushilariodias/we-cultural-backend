@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
-import Artist from "../models/artistModel";
-import cloudinary from "../config/cloudinary";
+import Artist from "../models/artistModel.js";
+import cloudinary from "../config/cloudinary.js";
 import { Readable } from "stream";
 
 // Helper para transformar Buffer em Stream

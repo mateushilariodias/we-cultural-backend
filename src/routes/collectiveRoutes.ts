@@ -5,8 +5,8 @@ import {
   getCollectiveById,
   updateCollective,
   deleteCollective,
-} from "../controllers/collectiveController";
-import { upload } from "../middlewares/upload";
+} from "../controllers/collectiveController.js";
+import { upload } from "../middlewares/upload.js";
 
 const router = Router();
 

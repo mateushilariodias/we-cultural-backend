@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
-import Equipment from "../models/equipmentModel";
-import cloudinary from "../config/cloudinary";
+import Equipment from "../models/equipmentModel.js";
+import cloudinary from "../config/cloudinary.js";
 
 // CREATE
 export const createEquipment = async (req: Request, res: Response) => {

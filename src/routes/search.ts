@@ -1,7 +1,7 @@
 import express from "express";
-import Artist from "../models/artistModel";
-import Collective from "../models/collectiveModel";
-import Equipment from "../models/equipmentModel";
+import Artist from "../models/artistModel.js";
+import Collective from "../models/collectiveModel.js";
+import Equipment from "../models/equipmentModel.js";
 
 const search = express.Router();
 

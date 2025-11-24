@@ -4,12 +4,12 @@ dotenv.config();
 import express from "express";
 import cors from "cors";
 import mongoose from "mongoose";
-import statsRoutes from "./routes/statsRoutes";
+import statsRoutes from "./routes/statsRoutes.js";
 
-import Artist from "./models/artistModel";
-import artistRoutes from "./routes/artistRoutes";
-import authRoutes from "./routes/authRoutes";
-import searchRoutes from "./routes/searchRoutes";
+import Artist from "./models/artistModel.js";
+import artistRoutes from "./routes/artistRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
+import searchRoutes from "./routes/searchRoutes.js";
 
 const app = express();
 

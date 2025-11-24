@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import Artist from "../models/artistModel";
+import Artist from "../models/artistModel.js";
 
 export const loginArtist = async (req: Request, res: Response) => {
   try {

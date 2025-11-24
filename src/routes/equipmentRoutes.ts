@@ -5,8 +5,8 @@ import {
   getEquipmentById,
   updateEquipment,
   deleteEquipment,
-} from "../controllers/equipmentController";
-import { upload } from "../middlewares/upload";
+} from "../controllers/equipmentController.js";
+import { upload } from "../middlewares/upload.js";
 
 const router = Router();
 

@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
-import Collective from "../models/collectiveModel";
-import cloudinary from "../config/cloudinary";
+import Collective from "../models/collectiveModel.js";
+import cloudinary from "../config/cloudinary.js";
 
 // CREATE
 export const createCollective = async (req: Request, res: Response) => {
