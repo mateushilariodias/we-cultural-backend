@@ -14,7 +14,14 @@ import searchRoutes from "./routes/searchRoutes.js";
 const app = express();
 
 // Middlewares
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:3000',  // desenvolvimento
+    'http://localhost:5173',  // vite dev
+    'https://we-cultural-frontend.vercel.app'  // produção
+  ], 
+  credentials: true
+}));
 app.use(express.json());
 
 // Rotas
