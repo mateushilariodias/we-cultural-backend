@@ -17,12 +17,12 @@ search.get("/", async (req, res) => {
 
     const artists = await Artist.find({ name: regex }).select("name profilePicture");
     const collectives = await Collective.find({ name: regex }).select("name profilePicture");
-    const equipments = await Equipment.find({ name: regex }).select("name profilePicture");
+    const equipments = await Equipment.find({ name: regex }).select("name logo");
 
     const results = [
       ...artists.map(a => ({ _id: a._id, type: "artist", name: a.name, profilePicture: a.profilePicture })),
       ...collectives.map(c => ({ _id: c._id, type: "collective", name: c.name, profilePicture: c.profilePicture })),
-      ...equipments.map(e => ({ _id: e._id, type: "equipment", name: e.name, profilePicture: e.profilePicture })),
+      ...equipments.map(e => ({ _id: e._id, type: "equipment", name: e.name, logo: e.logo })),
     ];
 
     res.json(results);

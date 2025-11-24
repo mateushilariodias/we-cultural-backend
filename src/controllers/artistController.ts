@@ -47,7 +47,7 @@ export const createArtist = async (req: Request, res: Response) => {
             resolve(result?.secure_url || "");
           }
         );
-        bufferToStream(req.file.buffer).pipe(uploadStream);
+        bufferToStream(req.file!.buffer).pipe(uploadStream);
       });
 
       profilePictureUrl = await uploadPromise;
@@ -123,7 +123,7 @@ export const updateArtist = async (req: Request, res: Response) => {
             resolve(result?.secure_url || "");
           }
         );
-        bufferToStream(req.file.buffer).pipe(uploadStream);
+        bufferToStream(req.file!.buffer).pipe(uploadStream);
       });
 
       updatedData.profilePicture = await uploadPromise;

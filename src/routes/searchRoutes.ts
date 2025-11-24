@@ -1,5 +1,5 @@
 import { Router } from "express";
-import artistModel = require("../models/artistModel");
+import artistModel from "../models/artistModel";
 
 const router = Router();
 
@@ -10,6 +10,7 @@ const router = Router();
  * - categorias
  * - características (lgbtqiapn, black, indigenous, pcd)
  */
+
 router.get("/artists", async (req, res) => {
   try {
     const q = (req.query.q as string)?.trim();
