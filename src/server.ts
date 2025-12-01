@@ -18,7 +18,8 @@ app.use(cors({
   origin: [
     'http://localhost:3000',  // desenvolvimento
     'http://localhost:5173',  // vite dev
-    'https://we-cultural-frontend.vercel.app'  // produção
+    'https://we-cultural-frontend.vercel.app',  // produção
+    'https://we-cultural-backend.onrender.com'
   ], 
   credentials: true
 }));
