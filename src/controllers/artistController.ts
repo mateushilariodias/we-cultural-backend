@@ -55,6 +55,12 @@ export const createArtist = async (req: Request, res: Response) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // ⭐ NOVO: Capturar IP do usuário para LGPD
+    const userIp = req.ip || 
+                   req.headers['x-forwarded-for'] as string || 
+                   req.connection.remoteAddress || 
+                   'unknown';
+
     const newArtist = new Artist({
       name,
       birthDate,
@@ -71,9 +77,20 @@ export const createArtist = async (req: Request, res: Response) => {
       categories,
       password: hashedPassword,
       profilePicture: profilePictureUrl,
+      // ⭐ NOVO: Registrar consentimento LGPD
+      lgpdConsent: {
+        accepted: true,
+        acceptedAt: new Date(),
+        ipAddress: userIp,
+        version: "1.0",
+        retroactive: false
+      }
     });
 
     await newArtist.save();
+    
+    console.log("✅ Artista cadastrado com consentimento LGPD");
+    
     res.status(201).json(newArtist);
   } catch (error) {
     console.error("❌ Erro ao criar artista:", error);
@@ -144,6 +161,8 @@ export const deleteArtist = async (req: Request, res: Response) => {
     const deletedArtist = await Artist.findByIdAndDelete(req.params.id);
     if (!deletedArtist) return res.status(404).json({ message: "Artista não encontrado" });
 
+    console.log("🗑️ Artista deletado (direito LGPD exercido)");
+    
     res.json({ message: "Artista deletado com sucesso" });
   } catch (error) {
     res.status(500).json({ message: "Erro ao deletar artista", error });

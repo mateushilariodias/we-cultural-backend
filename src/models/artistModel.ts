@@ -16,6 +16,14 @@ export interface IArtist extends Document {
   categories: string[];
   password: string;
   profilePicture?: string;
+  // NOVO: LGPD Consent
+  lgpdConsent?: {
+    accepted: boolean;
+    acceptedAt?: Date;
+    ipAddress?: string;
+    version?: string;
+    retroactive?: boolean;
+  };
 }
 
 const ArtistSchema: Schema = new Schema({
@@ -34,6 +42,16 @@ const ArtistSchema: Schema = new Schema({
   categories: { type: [String], required: true },
   password: { type: String, required: true },
   profilePicture: { type: String },
+  // NOVO: LGPD Consent
+  lgpdConsent: {
+    accepted: { type: Boolean, default: false },
+    acceptedAt: { type: Date },
+    ipAddress: { type: String },
+    version: { type: String, default: "1.0" },
+    retroactive: { type: Boolean, default: false }
+  }
+}, {
+  timestamps: true // Adiciona createdAt e updatedAt automaticamente
 });
 
 export default mongoose.model<IArtist>("Artist", ArtistSchema);
