@@ -10,6 +10,8 @@ import Artist from "./models/artistModel.js";
 import artistRoutes from "./routes/artistRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import searchRoutes from "./routes/searchRoutes.js";
+import collectiveRoutes from "./routes/collectiveRoutes.js";
+import equipmentRoutes from "./routes/equipmentRoutes.js";
 
 const app = express();
 
@@ -31,6 +33,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/artists", artistRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/stats", statsRoutes);
+app.use("/api/collectives", collectiveRoutes);
+app.use("/api/equipments", equipmentRoutes);
 
 // Rota de debug
 app.get("/api/debug", async (req, res) => {

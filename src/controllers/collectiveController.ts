@@ -2,6 +2,15 @@ import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import Collective from "../models/collectiveModel.js";
 import cloudinary from "../config/cloudinary.js";
+import { Readable } from "stream";
+
+// Helper para transformar Buffer em Stream
+const bufferToStream = (buffer: Buffer) => {
+  const readable = new Readable();
+  readable.push(buffer);
+  readable.push(null);
+  return readable;
+};
 
 // CREATE
 export const createCollective = async (req: Request, res: Response) => {
@@ -9,9 +18,25 @@ export const createCollective = async (req: Request, res: Response) => {
     const { password, ...rest } = req.body;
 
     let profilePictureUrl = "";
+    
     if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path, { folder: "collectives" });
-      profilePictureUrl = result.secure_url;
+      console.log("📸 Arquivo recebido pelo multer:", req.file.originalname);
+
+      const uploadPromise = new Promise<string>((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          { folder: "collectives" },
+          (error: any, result: any) => {
+            if (error) {
+              console.error("❌ Erro no Cloudinary:", error);
+              return reject(error);
+            }
+            resolve(result?.secure_url || "");
+          }
+        );
+        bufferToStream(req.file!.buffer).pipe(uploadStream);
+      });
+
+      profilePictureUrl = await uploadPromise;
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -20,14 +45,14 @@ export const createCollective = async (req: Request, res: Response) => {
       ...rest,
       password: hashedPassword,
       profilePicture: profilePictureUrl,
-      memberNames: rest.memberNames?.split(",").map((n: string) => n.trim()),
-      categories: rest.categories instanceof Array ? rest.categories : [rest.categories],
+      memberNames: rest.memberNames?.split(",").map((n: string) => n.trim()) || [],
+      categories: Array.isArray(rest.categories) ? rest.categories : [rest.categories],
     });
 
     await newCollective.save();
     res.status(201).json(newCollective);
   } catch (error) {
-    console.error(error);
+    console.error("❌ Erro ao criar coletivo:", error);
     res.status(500).json({ message: "Error creating collective", error });
   }
 };
@@ -57,31 +82,50 @@ export const getCollectiveById = async (req: Request, res: Response) => {
 export const updateCollective = async (req: Request, res: Response) => {
   try {
     const { password, ...rest } = req.body;
-    let updatedData = { ...rest };
+    let updatedData: any = { ...rest };
 
     if (password) {
-      const hashedPassword = await bcrypt.hash(password, 10);
-      updatedData = { ...rest, password: hashedPassword };
+      updatedData.password = await bcrypt.hash(password, 10);
     }
 
     if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path, { folder: "collectives" });
-      updatedData.profilePicture = result.secure_url;
+      console.log("📸 Atualizando imagem:", req.file.originalname);
+
+      const uploadPromise = new Promise<string>((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          { folder: "collectives" },
+          (error: any, result: any) => {
+            if (error) {
+              console.error("❌ Erro no Cloudinary (update):", error);
+              return reject(error);
+            }
+            resolve(result?.secure_url || "");
+          }
+        );
+        bufferToStream(req.file!.buffer).pipe(uploadStream);
+      });
+
+      updatedData.profilePicture = await uploadPromise;
     }
 
     if (rest.memberNames) {
       updatedData.memberNames = rest.memberNames.split(",").map((n: string) => n.trim());
     }
 
-    if (rest.categories && !(rest.categories instanceof Array)) {
+    if (rest.categories && !Array.isArray(rest.categories)) {
       updatedData.categories = [rest.categories];
     }
 
-    const updatedCollective = await Collective.findByIdAndUpdate(req.params.id, updatedData, { new: true });
+    const updatedCollective = await Collective.findByIdAndUpdate(
+      req.params.id, 
+      updatedData, 
+      { new: true }
+    );
 
     if (!updatedCollective) return res.status(404).json({ message: "Collective not found" });
     res.json(updatedCollective);
   } catch (error) {
+    console.error("❌ Erro ao atualizar coletivo:", error);
     res.status(500).json({ message: "Error updating collective", error });
   }
 };

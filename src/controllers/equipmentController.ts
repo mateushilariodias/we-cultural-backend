@@ -2,6 +2,15 @@ import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import Equipment from "../models/equipmentModel.js";
 import cloudinary from "../config/cloudinary.js";
+import { Readable } from "stream";
+
+// Helper para transformar Buffer em Stream
+const bufferToStream = (buffer: Buffer) => {
+  const readable = new Readable();
+  readable.push(buffer);
+  readable.push(null);
+  return readable;
+};
 
 // CREATE
 export const createEquipment = async (req: Request, res: Response) => {
@@ -9,9 +18,25 @@ export const createEquipment = async (req: Request, res: Response) => {
     const { password, ...rest } = req.body;
 
     let logoUrl = "";
+    
     if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path, { folder: "equipment" });
-      logoUrl = result.secure_url;
+      console.log("📸 Arquivo recebido pelo multer:", req.file.originalname);
+
+      const uploadPromise = new Promise<string>((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          { folder: "equipments" },
+          (error: any, result: any) => {
+            if (error) {
+              console.error("❌ Erro no Cloudinary:", error);
+              return reject(error);
+            }
+            resolve(result?.secure_url || "");
+          }
+        );
+        bufferToStream(req.file!.buffer).pipe(uploadStream);
+      });
+
+      logoUrl = await uploadPromise;
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -20,20 +45,13 @@ export const createEquipment = async (req: Request, res: Response) => {
       ...rest,
       password: hashedPassword,
       logo: logoUrl,
-      category: rest.category instanceof Array ? rest.category : [rest.category],
-      address: {
-        street: rest.rua,
-        neighborhood: rest.bairro,
-        city: rest.cidade,
-        state: rest.estado,
-        zip: rest.cep,
-      },
+      category: Array.isArray(rest.category) ? rest.category : [rest.category],
     });
 
     await newEquipment.save();
     res.status(201).json(newEquipment);
   } catch (error) {
-    console.error(error);
+    console.error("❌ Erro ao criar equipamento:", error);
     res.status(500).json({ message: "Error creating equipment", error });
   }
 };
@@ -63,37 +81,46 @@ export const getEquipmentById = async (req: Request, res: Response) => {
 export const updateEquipment = async (req: Request, res: Response) => {
   try {
     const { password, ...rest } = req.body;
-    let updatedData = { ...rest };
+    let updatedData: any = { ...rest };
 
     if (password) {
-      const hashedPassword = await bcrypt.hash(password, 10);
-      updatedData.password = hashedPassword;
+      updatedData.password = await bcrypt.hash(password, 10);
     }
 
     if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path, { folder: "equipment" });
-      updatedData.logo = result.secure_url;
+      console.log("📸 Atualizando logo:", req.file.originalname);
+
+      const uploadPromise = new Promise<string>((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          { folder: "equipments" },
+          (error: any, result: any) => {
+            if (error) {
+              console.error("❌ Erro no Cloudinary (update):", error);
+              return reject(error);
+            }
+            resolve(result?.secure_url || "");
+          }
+        );
+        bufferToStream(req.file!.buffer).pipe(uploadStream);
+      });
+
+      updatedData.logo = await uploadPromise;
     }
 
-    if (rest.category && !(rest.category instanceof Array)) {
+    if (rest.category && !Array.isArray(rest.category)) {
       updatedData.category = [rest.category];
     }
 
-    if (rest.rua || rest.bairro || rest.cidade || rest.estado || rest.cep) {
-      updatedData.address = {
-        street: rest.rua,
-        neighborhood: rest.bairro,
-        city: rest.cidade,
-        state: rest.estado,
-        zip: rest.cep,
-      };
-    }
-
-    const updatedEquipment = await Equipment.findByIdAndUpdate(req.params.id, updatedData, { new: true });
+    const updatedEquipment = await Equipment.findByIdAndUpdate(
+      req.params.id,
+      updatedData,
+      { new: true }
+    );
 
     if (!updatedEquipment) return res.status(404).json({ message: "Equipment not found" });
     res.json(updatedEquipment);
   } catch (error) {
+    console.error("❌ Erro ao atualizar equipamento:", error);
     res.status(500).json({ message: "Error updating equipment", error });
   }
 };
