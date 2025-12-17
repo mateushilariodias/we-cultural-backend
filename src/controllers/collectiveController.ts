@@ -81,7 +81,7 @@ export const getCollectiveById = async (req: Request, res: Response) => {
 // UPDATE
 export const updateCollective = async (req: Request, res: Response) => {
   try {
-    const { password, ...rest } = req.body;
+    const { password, memberNames, categories, ...rest } = req.body;
     let updatedData: any = { ...rest };
 
     if (password) {
@@ -108,25 +108,31 @@ export const updateCollective = async (req: Request, res: Response) => {
       updatedData.profilePicture = await uploadPromise;
     }
 
-    if (rest.memberNames) {
-      updatedData.memberNames = rest.memberNames.split(",").map((n: string) => n.trim());
+    // Processar memberNames se vier como string
+    if (memberNames) {
+      if (typeof memberNames === 'string') {
+        updatedData.memberNames = memberNames.split(",").map((n: string) => n.trim());
+      } else {
+        updatedData.memberNames = memberNames;
+      }
     }
 
-    if (rest.categories && !Array.isArray(rest.categories)) {
-      updatedData.categories = [rest.categories];
+    // Processar categories
+    if (categories) {
+      updatedData.categories = Array.isArray(categories) ? categories : [categories];
     }
 
     const updatedCollective = await Collective.findByIdAndUpdate(
       req.params.id, 
       updatedData, 
-      { new: true }
+      { new: true, runValidators: false } // ← Adicione runValidators: false
     );
 
     if (!updatedCollective) return res.status(404).json({ message: "Collective not found" });
     res.json(updatedCollective);
   } catch (error) {
     console.error("❌ Erro ao atualizar coletivo:", error);
-    res.status(500).json({ message: "Error updating collective", error });
+    res.status(500).json({ message: "Error updating collective", error: (error as Error).message });
   }
 };
 

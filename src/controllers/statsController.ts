@@ -1,11 +1,16 @@
 import { Request, Response } from "express";
 import Artist from "../models/artistModel.js";
+import Collective from "../models/collectiveModel.js";
+import Equipment from "../models/equipmentModel.js";
+
 
 export const getStats = async (req: Request, res: Response) => {
   try {
     // Total de artistas
     const totalArtistas = await Artist.countDocuments();
-
+    const totalColetivos = await Collective.countDocuments();
+    const totalEquipamentos = await Equipment.countDocuments();
+    
     // Artistas por gênero
     const artistasPorGenero = await Artist.aggregate([
       {
@@ -73,8 +78,8 @@ export const getStats = async (req: Request, res: Response) => {
     res.json({
       totais: {
         totalArtistas,
-        totalColetivos: 0, // Adicione quando tiver modelo de Coletivo
-        totalEquipamentos: 0 // Adicione quando tiver modelo de Equipamento
+        totalColetivos,
+        totalEquipamentos
       },
       artistasPorGenero,
       artistasFaixaEtaria: faixasEtarias,

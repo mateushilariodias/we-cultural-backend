@@ -80,7 +80,7 @@ export const getEquipmentById = async (req: Request, res: Response) => {
 // UPDATE
 export const updateEquipment = async (req: Request, res: Response) => {
   try {
-    const { password, ...rest } = req.body;
+    const { password, category, ...rest } = req.body;
     let updatedData: any = { ...rest };
 
     if (password) {
@@ -107,21 +107,22 @@ export const updateEquipment = async (req: Request, res: Response) => {
       updatedData.logo = await uploadPromise;
     }
 
-    if (rest.category && !Array.isArray(rest.category)) {
-      updatedData.category = [rest.category];
+    // Processar category
+    if (category) {
+      updatedData.category = Array.isArray(category) ? category : [category];
     }
 
     const updatedEquipment = await Equipment.findByIdAndUpdate(
       req.params.id,
       updatedData,
-      { new: true }
+      { new: true, runValidators: false } // ← Adicione runValidators: false
     );
 
     if (!updatedEquipment) return res.status(404).json({ message: "Equipment not found" });
     res.json(updatedEquipment);
   } catch (error) {
     console.error("❌ Erro ao atualizar equipamento:", error);
-    res.status(500).json({ message: "Error updating equipment", error });
+    res.status(500).json({ message: "Error updating equipment", error: (error as Error).message });
   }
 };
 
