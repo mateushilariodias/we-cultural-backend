@@ -15,6 +15,10 @@ import equipmentRoutes from "./routes/equipmentRoutes.js";
 
 const app = express();
 
+app.get("/api/health", (req, res) => {
+  res.status(200).json({ status: "ok", timestamp: new Date() });
+});
+
 // Middlewares
 app.use(cors({
   origin: [
