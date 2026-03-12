@@ -33,12 +33,12 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
       { expiresIn: "1h" }
     );
 
-    const resetLink = `${FRONTEND_URL}/reset-password?token=${resetToken}`;
+    const resetLink = `${FRONTEND_URL}/resetPassword?token=${resetToken}`;
 
     console.log("🔑 Token de reset gerado para:", email);
     console.log("🔗 Link de reset:", resetLink);
 
-    // ✅ ENVIAR EMAIL COM RESEND
+    // ✅ ENVIAR EMAIL COM NODEMAILER + GMAIL SMTP
     try {
       await sendPasswordResetEmail(email, resetToken, artist.name);
       console.log("📧 Email de reset enviado para:", email);

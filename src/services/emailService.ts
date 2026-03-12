@@ -1,6 +1,13 @@
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Criar transporter do Gmail
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_EMAIL,
+    pass: process.env.GMAIL_PASSWORD,
+  },
+});
 
 export const sendPasswordResetEmail = async (
   email: string,
@@ -8,12 +15,12 @@ export const sendPasswordResetEmail = async (
   userName: string
 ) => {
   try {
-    const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
+    const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/resetPassword?token=${resetToken}`;
 
     console.log("📧 Enviando email de reset para:", email);
 
-    const result = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
+    const mailOptions = {
+      from: `"Nós Cultural" <${process.env.GMAIL_EMAIL}>`,
       to: email,
       subject: 'Redefinir sua senha - Nós Cultural',
       html: `
@@ -51,18 +58,18 @@ export const sendPasswordResetEmail = async (
           </div>
         </div>
       `,
-    });
+    };
 
-    if (result.error) {
-      console.error('❌ Erro ao enviar email:', result.error);
-      throw result.error;
-    }
+    // Enviar email
+    const info = await transporter.sendMail(mailOptions);
 
-    console.log('✅ Email enviado com sucesso! ID:', result.data?.id);
-    return result.data;
+    console.log('✅ Email enviado com sucesso!');
+    console.log('📧 Mensagem ID:', info.messageId);
+    
+    return info;
 
   } catch (error) {
-    console.error('❌ Erro no emailService:', error);
+    console.error('❌ Erro ao enviar email:', error);
     throw error;
   }
 };
