@@ -12,6 +12,7 @@ import authRoutes from "./routes/authRoutes.js";
 import searchRoutes from "./routes/searchRoutes.js";
 import collectiveRoutes from "./routes/collectiveRoutes.js";
 import equipmentRoutes from "./routes/equipmentRoutes.js";
+import eventRoutes from "./routes/eventRoutes.js";
 
 const app = express();
 
@@ -39,6 +40,7 @@ app.use("/api/search", searchRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/api/collectives", collectiveRoutes);
 app.use("/api/equipments", equipmentRoutes);
+app.use("/api", eventRoutes);
 
 // Rota de debug
 app.get("/api/debug", async (req, res) => {
