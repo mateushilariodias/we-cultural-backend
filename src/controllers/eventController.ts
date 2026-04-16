@@ -2,6 +2,10 @@ import { Request, Response } from "express";
 import Event from "../models/eventModel.js";
 import cloudinary from "../config/cloudinary.js";
 import { Readable } from "stream";
+import { parseBrazilianDate, parseMultipleDates } from "../utils/parseDate.js";
+import { getWeekDates } from "../utils/weekHelper.js";
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
 const bufferToStream = (buffer: Buffer) => {
   const readable = new Readable();
@@ -10,7 +14,39 @@ const bufferToStream = (buffer: Buffer) => {
   return readable;
 };
 
-// ✅ CRIAR EVENTO
+const uploadToCloudinary = (buffer: Buffer, filename: string): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: "events" },
+      (error, result) => {
+        if (error) {
+          console.error("❌ Cloudinary error:", error);
+          return reject(error);
+        }
+        resolve(result?.secure_url ?? "");
+      }
+    );
+    bufferToStream(buffer).pipe(stream);
+    console.log("📸 Uploading image:", filename);
+  });
+
+/**
+ * FormData sempre chega como string — faz o parse seguro.
+ * Aceita: string JSON, array já pronto, ou undefined.
+ */
+const parseJsonField = <T>(value: unknown, fallback: T): T => {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (Array.isArray(value)) return value as unknown as T;
+  try {
+    return JSON.parse(value as string) as T;
+  } catch {
+    return fallback;
+  }
+};
+
+// ─── Controllers ────────────────────────────────────────────────────────────
+
+// POST /api/events
 export const createEvent = async (req: Request, res: Response) => {
   try {
     const {
@@ -21,62 +57,50 @@ export const createEvent = async (req: Request, res: Response) => {
       time,
       location,
       address,
-      details,
-      dates,
       artist,
       link,
-      social,
       color,
     } = req.body;
 
+    // Arrays vindos como JSON string do FormData
+    const detailsRaw = parseJsonField<string[]>(req.body.details, []);
+    const datesRaw = parseJsonField<string[]>(req.body.dates, []);
+    const social = parseJsonField<{ instagram?: string; facebook?: string }>(
+      req.body.social,
+      {}
+    );
+
+    // Converter datas
+    const parsedDate = parseBrazilianDate(date);
+    const parsedDates = parseMultipleDates(datesRaw);
+
+    // Upload de imagem
     let imageUrl = "";
-
-    // Upload da imagem se fornecida
     if (req.file) {
-      console.log("📸 Fazendo upload da imagem:", req.file.originalname);
-
-      const uploadPromise = new Promise<string>((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
-          { folder: "events" },
-          (error, result) => {
-            if (error) {
-              console.error("❌ Erro no Cloudinary:", error);
-              return reject(error);
-            }
-            resolve(result?.secure_url || "");
-          }
-        );
-        bufferToStream(req.file!.buffer).pipe(uploadStream);
-      });
-
-      imageUrl = await uploadPromise;
+      imageUrl = await uploadToCloudinary(req.file.buffer, req.file.originalname);
     }
 
     const newEvent = new Event({
       title,
       description,
-      date,
+      date: parsedDate,
       dayOfWeek,
       time,
       location,
       address,
       image: imageUrl,
-      details: Array.isArray(details) ? details : [],
-      dates: Array.isArray(dates) ? dates : [],
+      details: detailsRaw,
+      dates: parsedDates,
       artist,
       link,
-      social: social ? JSON.parse(social) : {},
+      social,
       color,
     });
 
     await newEvent.save();
+    console.log("✅ Evento criado:", title);
 
-    console.log("✅ Evento criado com sucesso:", title);
-
-    res.status(201).json({
-      message: "Evento criado com sucesso",
-      event: newEvent,
-    });
+    res.status(201).json({ message: "Evento criado com sucesso", event: newEvent });
   } catch (error) {
     console.error("❌ Erro ao criar evento:", error);
     res.status(500).json({
@@ -86,13 +110,30 @@ export const createEvent = async (req: Request, res: Response) => {
   }
 };
 
-// ✅ LISTAR TODOS OS EVENTOS
+// GET /api/events  →  apenas eventos da semana atual
 export const getEvents = async (req: Request, res: Response) => {
   try {
-    const events = await Event.find({ isActive: true }).sort({ date: 1 });
+    const { weekStart, weekEnd } = getWeekDates();
+
+    const events = await Event.find({
+      isActive: true,
+      $or: [
+        { date: { $gte: weekStart, $lte: weekEnd } },
+        { dates: { $elemMatch: { $gte: weekStart, $lte: weekEnd } } },
+      ],
+    }).sort({ date: 1 });
+
+    console.log(
+      `📅 Semana: ${weekStart.toLocaleDateString("pt-BR")} → ${weekEnd.toLocaleDateString("pt-BR")}`
+    );
+    console.log(`✅ ${events.length} evento(s) encontrado(s)`);
 
     res.json({
-      message: "Eventos recuperados com sucesso",
+      message: "Eventos da semana recuperados com sucesso",
+      week: {
+        start: weekStart.toLocaleDateString("pt-BR"),
+        end: weekEnd.toLocaleDateString("pt-BR"),
+      },
       events,
     });
   } catch (error) {
@@ -103,21 +144,25 @@ export const getEvents = async (req: Request, res: Response) => {
   }
 };
 
-// ✅ BUSCAR EVENTO POR ID
+// GET /api/events/all  →  todos os eventos
+export const getAllEvents = async (req: Request, res: Response) => {
+  try {
+    const events = await Event.find({ isActive: true }).sort({ date: 1 });
+    res.json({ message: "Todos os eventos recuperados", events });
+  } catch (error) {
+    res.status(500).json({
+      message: "Erro ao buscar eventos",
+      error: (error as Error).message,
+    });
+  }
+};
+
+// GET /api/events/:id
 export const getEventById = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-
-    const event = await Event.findById(id);
-
-    if (!event) {
-      return res.status(404).json({ message: "Evento não encontrado" });
-    }
-
-    res.json({
-      message: "Evento encontrado",
-      event,
-    });
+    const event = await Event.findById(req.params.id);
+    if (!event) return res.status(404).json({ message: "Evento não encontrado" });
+    res.json({ message: "Evento encontrado", event });
   } catch (error) {
     res.status(500).json({
       message: "Erro ao buscar evento",
@@ -126,7 +171,7 @@ export const getEventById = async (req: Request, res: Response) => {
   }
 };
 
-// ✅ ATUALIZAR EVENTO
+// PUT /api/events/:id
 export const updateEvent = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -138,66 +183,50 @@ export const updateEvent = async (req: Request, res: Response) => {
       time,
       location,
       address,
-      details,
-      dates,
       artist,
       link,
-      social,
       color,
     } = req.body;
 
-    let updateData: any = {
+    const detailsRaw = parseJsonField<string[]>(req.body.details, []);
+    const datesRaw = parseJsonField<string[]>(req.body.dates, []);
+    const social = parseJsonField<{ instagram?: string; facebook?: string }>(
+      req.body.social,
+      {}
+    );
+
+    const parsedDate = parseBrazilianDate(date);
+    const parsedDates = parseMultipleDates(datesRaw);
+
+    const updateData: Record<string, unknown> = {
       title,
       description,
-      date,
+      date: parsedDate,
       dayOfWeek,
       time,
       location,
       address,
-      details: Array.isArray(details) ? details : [],
-      dates: Array.isArray(dates) ? dates : [],
+      details: detailsRaw,
+      dates: parsedDates,
       artist,
       link,
-      social: social ? JSON.parse(social) : {},
+      social,
       color,
       updatedAt: new Date(),
     };
 
-    // Se houver nova imagem
     if (req.file) {
-      console.log("📸 Atualizando imagem:", req.file.originalname);
-
-      const uploadPromise = new Promise<string>((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
-          { folder: "events" },
-          (error, result) => {
-            if (error) {
-              console.error("❌ Erro no Cloudinary:", error);
-              return reject(error);
-            }
-            resolve(result?.secure_url || "");
-          }
-        );
-        bufferToStream(req.file!.buffer).pipe(uploadStream);
-      });
-
-      updateData.image = await uploadPromise;
+      updateData.image = await uploadToCloudinary(
+        req.file.buffer,
+        req.file.originalname
+      );
     }
 
-    const updatedEvent = await Event.findByIdAndUpdate(id, updateData, {
-      new: true,
-    });
-
-    if (!updatedEvent) {
-      return res.status(404).json({ message: "Evento não encontrado" });
-    }
+    const updated = await Event.findByIdAndUpdate(id, updateData, { new: true });
+    if (!updated) return res.status(404).json({ message: "Evento não encontrado" });
 
     console.log("✅ Evento atualizado:", title);
-
-    res.json({
-      message: "Evento atualizado com sucesso",
-      event: updatedEvent,
-    });
+    res.json({ message: "Evento atualizado com sucesso", event: updated });
   } catch (error) {
     console.error("❌ Erro ao atualizar evento:", error);
     res.status(500).json({
@@ -207,22 +236,13 @@ export const updateEvent = async (req: Request, res: Response) => {
   }
 };
 
-// ✅ DELETAR EVENTO
+// DELETE /api/events/:id
 export const deleteEvent = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-
-    const event = await Event.findByIdAndDelete(id);
-
-    if (!event) {
-      return res.status(404).json({ message: "Evento não encontrado" });
-    }
-
+    const event = await Event.findByIdAndDelete(req.params.id);
+    if (!event) return res.status(404).json({ message: "Evento não encontrado" });
     console.log("🗑️ Evento deletado:", event.title);
-
-    res.json({
-      message: "Evento deletado com sucesso",
-    });
+    res.json({ message: "Evento deletado com sucesso" });
   } catch (error) {
     res.status(500).json({
       message: "Erro ao deletar evento",
