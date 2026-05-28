@@ -1,12 +1,39 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-import express from "express";
-import cors from "cors";
-import mongoose from "mongoose";
-import statsRoutes from "./routes/statsRoutes.js";
+// ─── Validação de variáveis de ambiente obrigatórias ────────────────────────
+const REQUIRED_ENV_VARS = [
+  "MONGODB_URI",
+  "JWT_SECRET",
+  "CLOUDINARY_CLOUD_NAME",
+  "CLOUDINARY_API_KEY",
+  "CLOUDINARY_API_SECRET",
+] as const;
 
-import Artist from "./models/artistModel.js";
+for (const key of REQUIRED_ENV_VARS) {
+  if (!process.env[key]) {
+    throw new Error(`❌ Variável de ambiente obrigatória não definida: ${key}`);
+  }
+}
+
+const OPTIONAL_EMAIL_VARS = ["GMAIL_EMAIL", "GMAIL_PASSWORD"] as const;
+for (const key of OPTIONAL_EMAIL_VARS) {
+  if (!process.env[key]) {
+    // console.warn é intencional: logger é içado antes de dotenv rodar em ES modules
+    console.warn(`[WARN] Variável opcional não definida: ${key} (reset de senha desativado)`);
+  }
+}
+
+// ─── Imports ────────────────────────────────────────────────────────────────
+import express, { Request, Response, NextFunction } from "express";
+import cors from "cors";
+import helmet from "helmet";
+import morgan from "morgan";
+import mongoose from "mongoose";
+import multer from "multer";
+import { AppError } from "./utils/AppError.js";
+import logger from "./utils/logger.js";
+import statsRoutes from "./routes/statsRoutes.js";
 import artistRoutes from "./routes/artistRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import searchRoutes from "./routes/searchRoutes.js";
@@ -16,24 +43,48 @@ import eventRoutes from "./routes/eventRoutes.js";
 
 const app = express();
 
-app.get("/api/health", (req, res) => {
+// ─── Health check (sem overhead de middlewares) ──────────────────────────────
+app.get("/api/health", (_req, res) => {
   res.status(200).json({ status: "ok", timestamp: new Date() });
 });
 
-// Middlewares
-app.use(cors({
-  origin: [
-    'http://localhost:3000',  // desenvolvimento
-    'http://localhost:5173',  // vite dev
-    'http://localhost:5000',
-    'https://we-cultural-frontend.vercel.app',  // produção
-    'https://we-cultural-backend.onrender.com'
-  ], 
-  credentials: true
-}));
+// ─── Security headers ────────────────────────────────────────────────────────
+app.use(helmet());
+
+// ─── CORS ─────────────────────────────────────────────────────────────────────
+const DEFAULT_ORIGINS = ["http://localhost:3000", "http://localhost:5173", "http://localhost:5000"];
+const corsOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(",").map((o) => o.trim())
+  : DEFAULT_ORIGINS;
+
+app.use(cors({ origin: corsOrigins, credentials: true }));
+
+// ─── Body parsing + sanitização NoSQL ───────────────────────────────────────
 app.use(express.json());
 
-// Rotas
+// express-mongo-sanitize is incompatible with Express 5 (req.query is getter-only).
+// This inline sanitizer mutates objects in-place instead of reassigning.
+function sanitizeMongoKeys(obj: Record<string, unknown>): void {
+  for (const key of Object.keys(obj)) {
+    if (key.startsWith("$") || key.includes(".")) {
+      delete obj[key];
+    } else if (obj[key] !== null && typeof obj[key] === "object") {
+      sanitizeMongoKeys(obj[key] as Record<string, unknown>);
+    }
+  }
+}
+app.use((req, _res, next) => {
+  if (req.body && typeof req.body === "object") sanitizeMongoKeys(req.body);
+  if (req.params && typeof req.params === "object") sanitizeMongoKeys(req.params);
+  if (req.query && typeof req.query === "object") sanitizeMongoKeys(req.query as Record<string, unknown>);
+  next();
+});
+
+// ─── HTTP request logging ─────────────────────────────────────────────────────
+const morganStream = { write: (msg: string) => logger.http(msg.trim()) };
+app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev", { stream: morganStream }));
+
+// ─── Rotas ───────────────────────────────────────────────────────────────────
 app.use("/api/auth", authRoutes);
 app.use("/api/artists", artistRoutes);
 app.use("/api/search", searchRoutes);
@@ -42,49 +93,43 @@ app.use("/api/collectives", collectiveRoutes);
 app.use("/api/equipments", equipmentRoutes);
 app.use("/api", eventRoutes);
 
-// Rota de debug
-app.get("/api/debug", async (req, res) => {
-  try {
-    const db = mongoose.connection.db!;
-    const collections = await db.listCollections().toArray();
-    const collectionNames = collections.map(c => c.name);
+app.get("/", (_req, res) => res.json({ message: "Bem-vindo à API" }));
 
-    const artistsCount = await Artist.countDocuments();
-    const allArtists = await Artist.find({}, 'email name').lean();
-
-    res.json({
-      database: mongoose.connection.db!.databaseName,
-      collections: collectionNames,
-      artists: {
-        count: artistsCount,
-        documents: allArtists
-      },
-      connection: {
-        host: mongoose.connection.host,
-        port: mongoose.connection.port,
-        readyState: mongoose.connection.readyState
-      }
-    });
-  } catch (error) {
-    console.error("❌ Erro no debug:", error);
-    res.status(500).json({ error: (error as Error).message });
-  }
+// ─── 404 ─────────────────────────────────────────────────────────────────────
+app.use((_req, res) => {
+  res.status(404).json({ message: "Rota não encontrada" });
 });
 
-// Rota raiz
-app.get("/", (req, res) => res.json({ message: "Bem-vindo à API" }));
+// ─── Error handler global ────────────────────────────────────────────────────
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res.status(400).json({ message: "Arquivo muito grande. Tamanho máximo: 5MB." });
+    }
+    return res.status(400).json({ message: "Erro no upload do arquivo." });
+  }
 
-// Conexão MongoDB
-const mongoURI = process.env.MONGODB_URI;
-if (!mongoURI) throw new Error("MONGODB_URI não definido no .env");
+  if (err.message.startsWith("Tipo de arquivo não permitido")) {
+    return res.status(400).json({ message: err.message });
+  }
 
-mongoose.connect(mongoURI)
+  if (err instanceof AppError) {
+    return res.status(err.statusCode).json({ message: err.message });
+  }
+
+  logger.error("Erro não tratado", { message: err.message, stack: err.stack });
+  res.status(500).json({ message: "Erro interno do servidor" });
+});
+
+// ─── Banco de dados e servidor ───────────────────────────────────────────────
+const mongoURI = process.env.MONGODB_URI as string;
+
+mongoose
+  .connect(mongoURI)
   .then(() => {
-    console.log("✅ MongoDB conectado");
-    console.log("📊 Banco de dados:", mongoose.connection.db!.databaseName);
+    logger.info("MongoDB conectado", { db: mongoose.connection.db!.databaseName });
   })
-  .catch(err => console.error("❌ Erro no MongoDB:", err));
+  .catch((err) => logger.error("Erro no MongoDB", { err }));
 
-// Porta
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+app.listen(PORT, () => logger.info(`Servidor rodando na porta ${PORT}`));
