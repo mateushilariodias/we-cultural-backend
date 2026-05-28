@@ -1,14 +1,14 @@
 import { Router } from "express";
 import artistModel from "../models/artistModel.js";
+import collectiveModel from "../models/collectiveModel.js";
+import equipmentModel from "../models/equipmentModel.js";
+import logger from "../utils/logger.js";
 
 const router = Router();
 
 /**
  * GET /api/search/artists?q=texto
- * Pode buscar por:
- * - nome
- * - categorias
- * - características (lgbtqiapn, black, indigenous, pcd)
+ * Busca artistas, coletivos e espaços por nome ou categoria
  */
 
 router.get("/artists", async (req, res) => {
@@ -16,25 +16,32 @@ router.get("/artists", async (req, res) => {
     const q = (req.query.q as string)?.trim();
 
     if (!q) {
-      return res.json([]);
+      return res.json({ artists: [], collectives: [], equipments: [] });
     }
 
-    // Regex para pesquisa parcial
-    const regex = new RegExp(q, "i");
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(escaped, "i");
 
-    const artists = await artistModel.find({
-      $or: [
-        { name: regex },
-        { categories: regex },
-        { email: regex },
-      ],
-    })
-      .select("name email categories profilePicture") // reduz payload
-      .lean();
+    const [artists, collectives, equipments] = await Promise.all([
+      artistModel
+        .find({ $or: [{ name: regex }, { categories: regex }] })
+        .select("name email categories profilePicture")
+        .lean(),
 
-    res.json(artists);
+      collectiveModel
+        .find({ $or: [{ name: regex }, { categories: regex }] })
+        .select("name categories profilePicture phone socialLink")
+        .lean(),
+
+      equipmentModel
+        .find({ $or: [{ name: regex }, { category: regex }] })
+        .select("name category logo cidade bairro email phone")
+        .lean(),
+    ]);
+
+    res.json({ artists, collectives, equipments });
   } catch (error) {
-    console.error("❌ Erro na busca:", error);
+    logger.error("Erro na busca", { error });
     res.status(500).json({ message: "Erro na busca" });
   }
 });
