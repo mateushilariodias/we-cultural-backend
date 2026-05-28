@@ -5,47 +5,20 @@ import {
   getArtistById,
   updateArtist,
   deleteArtist,
+  searchArtists,
 } from "../controllers/artistController.js";
 import { upload } from "../middlewares/upload.js";
-import Artist from "../models/artistModel.js";
+import { requireAuth } from "../middlewares/auth.js";
+import { validateBody } from "../middlewares/validate.js";
+import { createArtistSchema } from "../schemas/artistSchemas.js";
 
 const router = Router();
 
-/**
- * 🔍 ROTA DE BUSCA - por nome OU categorias OU qualquer campo
- * GET /api/artists/search?query=algo
- */
-router.get("/search", async (req, res) => {
-  const query = req.query.query as string;
-
-  if (!query || query.trim() === "") {
-    return res.json([]);
-  }
-
-  try {
-    const results = await Artist.find({
-      $or: [
-        { name: { $regex: query, $options: "i" } },           // nome
-        { bio: { $regex: query, $options: "i" } },            // bio
-        { genre: { $regex: query, $options: "i" } },          // gênero
-        { categories: { $regex: query, $options: "i" } },     // categorias
-      ],
-    }).lean();
-
-    res.json(results);
-  } catch (error) {
-    console.error("❌ Erro ao buscar artistas:", error);
-    res.status(500).json({ error: "Erro ao buscar artistas" });
-  }
-});
-
-/**
- * ✅ CRUD
- */
-router.post("/", upload.single("profilePicture"), createArtist);
+router.get("/search", searchArtists);
+router.post("/", upload.single("profilePicture"), validateBody(createArtistSchema), createArtist);
 router.get("/", getArtists);
 router.get("/:id", getArtistById);
-router.put("/:id", upload.single("profilePicture"), updateArtist);
-router.delete("/:id", deleteArtist);
+router.put("/:id", requireAuth, upload.single("profilePicture"), updateArtist);
+router.delete("/:id", requireAuth, deleteArtist);
 
 export default router;

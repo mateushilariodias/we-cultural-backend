@@ -1,5 +1,4 @@
 import { Router } from "express";
-import multer from "multer";
 import {
   createEvent,
   getEvents,
@@ -8,18 +7,18 @@ import {
   deleteEvent,
   getAllEvents,
 } from "../controllers/eventController.js";
+import { upload } from "../middlewares/upload.js";
+import { requireAuth } from "../middlewares/auth.js";
+import { validateBody } from "../middlewares/validate.js";
+import { createEventSchema } from "../schemas/eventSchemas.js";
 
 const router = Router();
 
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
-
-// POST com upload de imagem (rota única, sem duplicata)
-router.post("/events", upload.single("image"), createEvent);
+router.post("/events", requireAuth, upload.single("image"), validateBody(createEventSchema), createEvent);
 router.get("/events", getEvents);
-router.get("/events/all", getAllEvents);   // deve vir ANTES de /events/:id
+router.get("/events/all", getAllEvents);
 router.get("/events/:id", getEventById);
-router.put("/events/:id", upload.single("image"), updateEvent);
-router.delete("/events/:id", deleteEvent);
+router.put("/events/:id", requireAuth, upload.single("image"), updateEvent);
+router.delete("/events/:id", requireAuth, deleteEvent);
 
 export default router;
