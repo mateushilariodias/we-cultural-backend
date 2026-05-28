@@ -19,23 +19,26 @@ export interface IEquipment extends Document {
   logo?: string;
 }
 
-const EquipmentSchema: Schema = new Schema({
-  name: { type: String, required: true },
-  cnpj: { type: String, required: true },
-  foundationYear: { type: String },
-  responsible: { type: String, required: true },
-  phone: { type: String, required: true },
-  email: { type: String, required: true },
-  website: { type: String },
-  rua: { type: String, required: true },
-  bairro: { type: String, required: true },
-  cidade: { type: String, required: true },
-  estado: { type: String, required: true },
-  cep: { type: String, required: true },
-  category: { type: [String], required: true },
-  description: { type: String },
-  password: { type: String, required: true },
-  logo: { type: String },
-}, { timestamps: true });
+const EquipmentSchema: Schema = new Schema(
+  {
+    name: { type: String, required: true },
+    cnpj: { type: String, required: true },
+    foundationYear: { type: String },
+    responsible: { type: String, required: true },
+    phone: { type: String, required: true },
+    email: { type: String, required: true },
+    website: { type: String },
+    rua: { type: String, required: true },
+    bairro: { type: String, required: true },
+    cidade: { type: String, required: true },
+    estado: { type: String, required: true },
+    cep: { type: String, required: true },
+    category: { type: [String], required: true },
+    description: { type: String },
+    password: { type: String, required: true },
+    logo: { type: String },
+  },
+  { timestamps: true }
+);
 
 export default mongoose.model<IEquipment>("Equipment", EquipmentSchema);
