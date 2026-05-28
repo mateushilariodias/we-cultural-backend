@@ -1,42 +1,16 @@
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import Equipment from "../models/equipmentModel.js";
-import cloudinary from "../config/cloudinary.js";
-import { Readable } from "stream";
+import { uploadToCloudinary } from "../services/cloudinaryService.js";
+import logger from "../utils/logger.js";
 
-// Helper para transformar Buffer em Stream
-const bufferToStream = (buffer: Buffer) => {
-  const readable = new Readable();
-  readable.push(buffer);
-  readable.push(null);
-  return readable;
-};
-
-// CREATE
 export const createEquipment = async (req: Request, res: Response) => {
   try {
     const { password, ...rest } = req.body;
 
     let logoUrl = "";
-    
     if (req.file) {
-      console.log("📸 Arquivo recebido pelo multer:", req.file.originalname);
-
-      const uploadPromise = new Promise<string>((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
-          { folder: "equipments" },
-          (error: any, result: any) => {
-            if (error) {
-              console.error("❌ Erro no Cloudinary:", error);
-              return reject(error);
-            }
-            resolve(result?.secure_url || "");
-          }
-        );
-        bufferToStream(req.file!.buffer).pipe(uploadStream);
-      });
-
-      logoUrl = await uploadPromise;
+      logoUrl = await uploadToCloudinary(req.file.buffer, req.file.originalname, "equipments");
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -51,88 +25,80 @@ export const createEquipment = async (req: Request, res: Response) => {
     await newEquipment.save();
     res.status(201).json(newEquipment);
   } catch (error) {
-    console.error("❌ Erro ao criar equipamento:", error);
-    res.status(500).json({ message: "Error creating equipment", error });
+    logger.error("Erro ao criar equipamento", { error });
+    res.status(500).json({ message: "Erro ao criar equipamento" });
   }
 };
 
-// READ ALL
 export const getEquipments = async (req: Request, res: Response) => {
   try {
-    const equipments = await Equipment.find();
-    res.json(equipments);
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const skip = (page - 1) * limit;
+
+    const [equipments, total] = await Promise.all([
+      Equipment.find().skip(skip).limit(limit),
+      Equipment.countDocuments(),
+    ]);
+
+    res.json({
+      data: equipments,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
   } catch (error) {
-    res.status(500).json({ message: "Error fetching equipments", error });
+    logger.error("Erro ao buscar equipamentos", { error });
+    res.status(500).json({ message: "Erro ao buscar equipamentos" });
   }
 };
 
-// READ ONE
 export const getEquipmentById = async (req: Request, res: Response) => {
   try {
     const equipment = await Equipment.findById(req.params.id);
-    if (!equipment) return res.status(404).json({ message: "Equipment not found" });
+    if (!equipment) return res.status(404).json({ message: "Equipamento não encontrado" });
     res.json(equipment);
   } catch (error) {
-    res.status(500).json({ message: "Error fetching equipment", error });
+    logger.error("Erro ao buscar equipamento", { error });
+    res.status(500).json({ message: "Erro ao buscar equipamento" });
   }
 };
 
-// UPDATE
 export const updateEquipment = async (req: Request, res: Response) => {
   try {
     const { password, category, ...rest } = req.body;
-    let updatedData: any = { ...rest };
+    const updatedData: Record<string, unknown> = { ...rest };
 
     if (password) {
       updatedData.password = await bcrypt.hash(password, 10);
     }
 
     if (req.file) {
-      console.log("📸 Atualizando logo:", req.file.originalname);
-
-      const uploadPromise = new Promise<string>((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
-          { folder: "equipments" },
-          (error: any, result: any) => {
-            if (error) {
-              console.error("❌ Erro no Cloudinary (update):", error);
-              return reject(error);
-            }
-            resolve(result?.secure_url || "");
-          }
-        );
-        bufferToStream(req.file!.buffer).pipe(uploadStream);
-      });
-
-      updatedData.logo = await uploadPromise;
+      updatedData.logo = await uploadToCloudinary(req.file.buffer, req.file.originalname, "equipments");
     }
 
-    // Processar category
     if (category) {
       updatedData.category = Array.isArray(category) ? category : [category];
     }
 
-    const updatedEquipment = await Equipment.findByIdAndUpdate(
-      req.params.id,
-      updatedData,
-      { new: true, runValidators: false } // ← Adicione runValidators: false
-    );
+    const updatedEquipment = await Equipment.findByIdAndUpdate(req.params.id, updatedData, {
+      new: true,
+      runValidators: false,
+    });
 
-    if (!updatedEquipment) return res.status(404).json({ message: "Equipment not found" });
+    if (!updatedEquipment) return res.status(404).json({ message: "Equipamento não encontrado" });
     res.json(updatedEquipment);
   } catch (error) {
-    console.error("❌ Erro ao atualizar equipamento:", error);
-    res.status(500).json({ message: "Error updating equipment", error: (error as Error).message });
+    logger.error("Erro ao atualizar equipamento", { error });
+    res.status(500).json({ message: "Erro ao atualizar equipamento" });
   }
 };
 
-// DELETE
 export const deleteEquipment = async (req: Request, res: Response) => {
   try {
     const deletedEquipment = await Equipment.findByIdAndDelete(req.params.id);
-    if (!deletedEquipment) return res.status(404).json({ message: "Equipment not found" });
-    res.json({ message: "Equipment deleted successfully" });
+    if (!deletedEquipment) return res.status(404).json({ message: "Equipamento não encontrado" });
+    res.json({ message: "Equipamento deletado com sucesso" });
   } catch (error) {
-    res.status(500).json({ message: "Error deleting equipment", error });
+    logger.error("Erro ao deletar equipamento", { error });
+    res.status(500).json({ message: "Erro ao deletar equipamento" });
   }
 };

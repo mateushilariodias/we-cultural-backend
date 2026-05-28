@@ -4,8 +4,8 @@ import jwt from "jsonwebtoken";
 import Artist from "../models/artistModel.js";
 import Collective from "../models/collectiveModel.js";
 import Equipment from "../models/equipmentModel.js";
+import logger from "../utils/logger.js";
 
-// Login de Artista (já existe)
 export const loginArtist = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
@@ -37,12 +37,11 @@ export const loginArtist = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error("❌ Erro no loginArtist:", error);
-    res.status(500).json({ message: "Erro ao realizar login", error });
+    logger.error("Erro no loginArtist", { error });
+    res.status(500).json({ message: "Erro ao realizar login" });
   }
 };
 
-// Login de Coletivo (NOVO)
 export const loginCollective = async (req: Request, res: Response) => {
   try {
     const { name, password } = req.body;
@@ -73,12 +72,11 @@ export const loginCollective = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error("❌ Erro no loginCollective:", error);
-    res.status(500).json({ message: "Erro ao realizar login", error });
+    logger.error("Erro no loginCollective", { error });
+    res.status(500).json({ message: "Erro ao realizar login" });
   }
 };
 
-// Login de Equipamento (NOVO)
 export const loginEquipment = async (req: Request, res: Response) => {
   try {
     const { name, password } = req.body;
@@ -109,7 +107,7 @@ export const loginEquipment = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error("❌ Erro no loginEquipment:", error);
-    res.status(500).json({ message: "Erro ao realizar login", error });
+    logger.error("Erro no loginEquipment", { error });
+    res.status(500).json({ message: "Erro ao realizar login" });
   }
 };

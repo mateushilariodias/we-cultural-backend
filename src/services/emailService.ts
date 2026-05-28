@@ -1,8 +1,9 @@
-import nodemailer from 'nodemailer';
+import nodemailer from "nodemailer";
+import logger from "../utils/logger.js";
 
 // Criar transporter do Gmail
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  service: "gmail",
   auth: {
     user: process.env.GMAIL_EMAIL,
     pass: process.env.GMAIL_PASSWORD,
@@ -15,14 +16,14 @@ export const sendPasswordResetEmail = async (
   userName: string
 ) => {
   try {
-    const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/resetPassword?token=${resetToken}`;
+    const resetLink = `${process.env.FRONTEND_URL || "http://localhost:3000"}/resetPassword?token=${resetToken}`;
 
-    console.log("📧 Enviando email de reset para:", email);
+    logger.info("Enviando email de reset", { email });
 
     const mailOptions = {
       from: `"Nós Cultural" <${process.env.GMAIL_EMAIL}>`,
       to: email,
-      subject: 'Redefinir sua senha - Nós Cultural',
+      subject: "Redefinir sua senha - Nós Cultural",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <div style="background-color: #1e3a8a; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
@@ -63,13 +64,11 @@ export const sendPasswordResetEmail = async (
     // Enviar email
     const info = await transporter.sendMail(mailOptions);
 
-    console.log('✅ Email enviado com sucesso!');
-    console.log('📧 Mensagem ID:', info.messageId);
-    
-    return info;
+    logger.info("Email enviado", { messageId: info.messageId });
 
+    return info;
   } catch (error) {
-    console.error('❌ Erro ao enviar email:', error);
+    logger.error("Erro ao enviar email", { error });
     throw error;
   }
 };

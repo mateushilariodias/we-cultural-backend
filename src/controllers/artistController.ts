@@ -1,15 +1,31 @@
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import Artist from "../models/artistModel.js";
-import cloudinary from "../config/cloudinary.js";
-import { Readable } from "stream";
+import { uploadToCloudinary } from "../services/cloudinaryService.js";
+import logger from "../utils/logger.js";
 
-// Helper para transformar Buffer em Stream
-const bufferToStream = (buffer: Buffer) => {
-  const readable = new Readable();
-  readable.push(buffer);
-  readable.push(null);
-  return readable;
+export const searchArtists = async (req: Request, res: Response) => {
+  const query = req.query.query as string;
+
+  if (!query || query.trim() === "") {
+    return res.json([]);
+  }
+
+  try {
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const results = await Artist.find({
+      $or: [
+        { name: { $regex: escaped, $options: "i" } },
+        { bio: { $regex: escaped, $options: "i" } },
+        { categories: { $regex: escaped, $options: "i" } },
+      ],
+    }).lean();
+
+    res.json(results);
+  } catch (error) {
+    logger.error("Erro ao buscar artistas", { error });
+    res.status(500).json({ message: "Erro ao buscar artistas" });
+  }
 };
 
 export const createArtist = async (req: Request, res: Response) => {
@@ -32,34 +48,17 @@ export const createArtist = async (req: Request, res: Response) => {
     } = req.body;
 
     let profilePictureUrl = "";
-
     if (req.file) {
-      console.log("📸 Arquivo recebido pelo multer:", req.file.originalname);
-
-      const uploadPromise = new Promise<string>((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
-          { folder: "artists" },
-          (error, result) => {
-            if (error) {
-              console.error("❌ Erro no Cloudinary:", error);
-              return reject(error);
-            }
-            resolve(result?.secure_url || "");
-          }
-        );
-        bufferToStream(req.file!.buffer).pipe(uploadStream);
-      });
-
-      profilePictureUrl = await uploadPromise;
+      profilePictureUrl = await uploadToCloudinary(req.file.buffer, req.file.originalname, "artists");
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // ⭐ NOVO: Capturar IP do usuário para LGPD
-    const userIp = req.ip || 
-                   req.headers['x-forwarded-for'] as string || 
-                   req.connection.remoteAddress || 
-                   'unknown';
+    const userIp =
+      req.ip ||
+      (req.headers["x-forwarded-for"] as string) ||
+      req.socket.remoteAddress ||
+      "unknown";
 
     const newArtist = new Artist({
       name,
@@ -77,33 +76,42 @@ export const createArtist = async (req: Request, res: Response) => {
       categories,
       password: hashedPassword,
       profilePicture: profilePictureUrl,
-      // ⭐ NOVO: Registrar consentimento LGPD
       lgpdConsent: {
         accepted: true,
         acceptedAt: new Date(),
         ipAddress: userIp,
         version: "1.0",
-        retroactive: false
-      }
+        retroactive: false,
+      },
     });
 
     await newArtist.save();
-    
-    console.log("✅ Artista cadastrado com consentimento LGPD");
-    
+    logger.info("Artista cadastrado com consentimento LGPD");
     res.status(201).json(newArtist);
   } catch (error) {
-    console.error("❌ Erro ao criar artista:", error);
-    res.status(500).json({ message: "Erro ao criar artista", error });
+    logger.error("Erro ao criar artista", { error });
+    res.status(500).json({ message: "Erro ao criar artista" });
   }
 };
 
 export const getArtists = async (req: Request, res: Response) => {
   try {
-    const artists = await Artist.find();
-    res.json(artists);
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const skip = (page - 1) * limit;
+
+    const [artists, total] = await Promise.all([
+      Artist.find().skip(skip).limit(limit),
+      Artist.countDocuments(),
+    ]);
+
+    res.json({
+      data: artists,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
   } catch (error) {
-    res.status(500).json({ message: "Erro ao buscar artistas", error });
+    logger.error("Erro ao buscar artistas", { error });
+    res.status(500).json({ message: "Erro ao buscar artistas" });
   }
 };
 
@@ -113,46 +121,37 @@ export const getArtistById = async (req: Request, res: Response) => {
     if (!artist) return res.status(404).json({ message: "Artista não encontrado" });
     res.json(artist);
   } catch (error) {
-    res.status(500).json({ message: "Erro ao buscar artista", error });
+    logger.error("Erro ao buscar artista", { error });
+    res.status(500).json({ message: "Erro ao buscar artista" });
   }
 };
 
 export const updateArtist = async (req: Request, res: Response) => {
   try {
     const { password, ...rest } = req.body;
-    let updatedData: any = { ...rest };
+    const updatedData: Record<string, unknown> = { ...rest };
 
     if (password) {
       updatedData.password = await bcrypt.hash(password, 10);
     }
 
     if (req.file) {
-      console.log("📸 Atualizando imagem:", req.file.originalname);
-
-      const uploadPromise = new Promise<string>((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
-          { folder: "artists" },
-          (error, result) => {
-            if (error) {
-              console.error("❌ Erro no Cloudinary (update):", error);
-              return reject(error);
-            }
-            resolve(result?.secure_url || "");
-          }
-        );
-        bufferToStream(req.file!.buffer).pipe(uploadStream);
-      });
-
-      updatedData.profilePicture = await uploadPromise;
+      updatedData.profilePicture = await uploadToCloudinary(
+        req.file.buffer,
+        req.file.originalname,
+        "artists"
+      );
     }
 
-    const updatedArtist = await Artist.findByIdAndUpdate(req.params.id, updatedData, { new: true });
+    const updatedArtist = await Artist.findByIdAndUpdate(req.params.id, updatedData, {
+      new: true,
+    });
     if (!updatedArtist) return res.status(404).json({ message: "Artista não encontrado" });
 
     res.json(updatedArtist);
   } catch (error) {
-    console.error("❌ Erro ao atualizar artista:", error);
-    res.status(500).json({ message: "Erro ao atualizar artista", error });
+    logger.error("Erro ao atualizar artista", { error });
+    res.status(500).json({ message: "Erro ao atualizar artista" });
   }
 };
 
@@ -161,10 +160,10 @@ export const deleteArtist = async (req: Request, res: Response) => {
     const deletedArtist = await Artist.findByIdAndDelete(req.params.id);
     if (!deletedArtist) return res.status(404).json({ message: "Artista não encontrado" });
 
-    console.log("🗑️ Artista deletado (direito LGPD exercido)");
-    
+    logger.info("Artista deletado (direito LGPD exercido)");
     res.json({ message: "Artista deletado com sucesso" });
   } catch (error) {
-    res.status(500).json({ message: "Erro ao deletar artista", error });
+    logger.error("Erro ao deletar artista", { error });
+    res.status(500).json({ message: "Erro ao deletar artista" });
   }
 };
