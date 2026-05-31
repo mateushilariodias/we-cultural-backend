@@ -13,8 +13,8 @@ export const createArtistSchema = z.object({
   categories: z
     .union([z.string(), z.array(z.string())])
     .transform((v) => (Array.isArray(v) ? v : [v])),
-  lgbtqiapn: z.coerce.boolean().optional(),
-  black: z.coerce.boolean().optional(),
-  indigenous: z.coerce.boolean().optional(),
-  pcd: z.coerce.boolean().optional(),
+  lgbtqiapn: z.union([z.boolean(), z.string().transform((v) => v === "true")]).optional(),
+  black: z.union([z.boolean(), z.string().transform((v) => v === "true")]).optional(),
+  indigenous: z.union([z.boolean(), z.string().transform((v) => v === "true")]).optional(),
+  pcd: z.union([z.boolean(), z.string().transform((v) => v === "true")]).optional(),
 });
