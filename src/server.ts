@@ -52,7 +52,12 @@ app.get("/api/health", (_req, res) => {
 app.use(helmet());
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
-const DEFAULT_ORIGINS = ["http://localhost:3000", "http://localhost:5173", "http://localhost:5000"];
+const DEFAULT_ORIGINS = [
+  "https://we-cultural-frontend.vercel.app",
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://localhost:5000",
+];
 const corsOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(",").map((o) => o.trim())
   : DEFAULT_ORIGINS;
