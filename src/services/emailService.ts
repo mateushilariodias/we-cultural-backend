@@ -16,7 +16,7 @@ export const sendPasswordResetEmail = async (
   userName: string
 ) => {
   try {
-    const resetLink = `${process.env.FRONTEND_URL || "http://localhost:3000"}/resetPassword?token=${resetToken}`;
+    const resetLink = `${process.env.FRONTEND_URL || "http://localhost:3000"}/redefinir-senha?token=${resetToken}`;
 
     logger.info("Enviando email de reset", { email });
 

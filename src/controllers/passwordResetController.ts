@@ -29,7 +29,7 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
       expiresIn: "1h",
     });
 
-    const resetLink = `${FRONTEND_URL}/resetPassword?token=${resetToken}`;
+    const resetLink = `${FRONTEND_URL}/redefinir-senha?token=${resetToken}`;
     logger.info("Token de reset gerado", { email });
 
     try {
