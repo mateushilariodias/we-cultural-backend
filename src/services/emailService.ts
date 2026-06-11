@@ -1,12 +1,16 @@
 import nodemailer from "nodemailer";
 import logger from "../utils/logger.js";
 
-// Criar transporter do Gmail
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false,
   auth: {
     user: process.env.GMAIL_EMAIL,
     pass: process.env.GMAIL_PASSWORD,
+  },
+  tls: {
+    rejectUnauthorized: false,
   },
 });
 
