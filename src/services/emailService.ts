@@ -1,17 +1,20 @@
 import nodemailer from "nodemailer";
+import { lookup } from "dns";
 import logger from "../utils/logger.js";
 
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
   secure: false,
-  family: 4,
   auth: {
     user: process.env.GMAIL_EMAIL,
     pass: process.env.GMAIL_PASSWORD,
   },
   tls: {
     rejectUnauthorized: false,
+  },
+  lookup: (hostname, options, callback) => {
+    lookup(hostname, { ...options, family: 4 }, callback);
   },
 });
 
