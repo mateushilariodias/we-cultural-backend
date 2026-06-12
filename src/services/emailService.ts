@@ -1,6 +1,8 @@
 import nodemailer from "nodemailer";
-import { lookup } from "dns";
+import { setDefaultResultOrder } from "dns";
 import logger from "../utils/logger.js";
+
+setDefaultResultOrder("ipv4first");
 
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
@@ -12,9 +14,6 @@ const transporter = nodemailer.createTransport({
   },
   tls: {
     rejectUnauthorized: false,
-  },
-  lookup: (hostname, options, callback) => {
-    lookup(hostname, { ...options, family: 4 }, callback);
   },
 });
 
